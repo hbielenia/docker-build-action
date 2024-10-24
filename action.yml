@@ -1,0 +1,56 @@
+# docker-pypa-build - Docker configuration for PyPA's build
+# Written in 2024 by Hubert Bielenia <13271065+hbielenia@users.noreply.github.com>
+# To the extent possible under law, the author(s) have dedicated all copyright and related
+# and neighboring rights to this software to the public domain worldwide. This software
+# is distributed without any warranty.
+# You should have received a copy of the CC0 Public Domain Dedication along with this software.
+# If not, see <http://creativecommons.org/publicdomain/zero/1.0/>.
+
+name: 'docker-image'
+description: 'Build Docker image'
+inputs:
+  dockerfile:
+    description: 'Path to Dockerfile'
+    default: 'Dockerfile'
+  from_cache:
+    description: 'Set higher than 0 if the image is already built'
+    default: '0'
+  push:
+    description: 'Set higher than 0 if the image is to be pushed'
+    default: '0'
+  tags:
+    description: 'Tags to use with the image'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Check platform type
+      if: runner.os != 'Linux'
+      run: exit 1
+    - name: Set up Docker BuildX
+      uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # 3.6.1
+    - name: Set up cache
+      uses: actions/cache@0c45773b623bea8c8e75f6c82b208c3cf94ea4f9 # 4.0.2
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ github.sha }}
+        restore-keys: ${{ inputs.from_cache > 0 && '' || join([runner.os, '-buildx-']) }}
+        fail-on-cache-miss: ${{ inputs.from_cache > 0 && true || false }}
+    - name: Build Docker image
+      uses: docker/build-push-action@4f7cdeb0f05278b464e71357394bf2c61f94138e # 6.6.0
+      with:
+        push: ${{ inputs.push > 0 && true || false }}
+        load: ${{ inputs.from_cache > 0 && false || true }}
+        file: ${{ inputs.dockerfile }}
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: ${{ input.from_cache > 0 && '' || 'type=local,dest=/tmp/.buildx-cache-new,mode=max' }}
+        platforms: linux/amd64
+        tags: ${{ inputs.tags }}
+    - name: Force cache refresh
+      if: inputs.from_cache <= 0
+      # Fix for:
+      # https://github.com/docker/build-push-action/issues/252
+      # https://github.com/moby/buildkit/issues/1896
+      run: |
+        rm -rf /tmp/.buildx-cache
+        mv /tmp/.buildx-cache-new /tmp/.buildx-cache
