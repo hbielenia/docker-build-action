@@ -27,6 +27,7 @@ runs:
     - name: Check platform type
       if: runner.os != 'Linux'
       run: exit 1
+      shell: sh
     - name: Set up Docker BuildX
       uses: docker/setup-buildx-action@988b5a0280414f521da01fcc63a27aeeb4b104db # 3.6.1
     - name: Set up cache
@@ -34,7 +35,7 @@ runs:
       with:
         path: /tmp/.buildx-cache
         key: ${{ runner.os }}-buildx-${{ github.sha }}
-        restore-keys: ${{ inputs.from_cache > 0 && '' || join([runner.os, '-buildx-']) }}
+        restore-keys: ${{ inputs.from_cache > 0 && '' || format('{0}-buildx-', runner.os) }}
         fail-on-cache-miss: ${{ inputs.from_cache > 0 && true || false }}
     - name: Build Docker image
       uses: docker/build-push-action@4f7cdeb0f05278b464e71357394bf2c61f94138e # 6.6.0
@@ -43,7 +44,7 @@ runs:
         load: ${{ inputs.from_cache > 0 && false || true }}
         file: ${{ inputs.dockerfile }}
         cache-from: type=local,src=/tmp/.buildx-cache
-        cache-to: ${{ input.from_cache > 0 && '' || 'type=local,dest=/tmp/.buildx-cache-new,mode=max' }}
+        cache-to: ${{ inputs.from_cache > 0 && '' || 'type=local,dest=/tmp/.buildx-cache-new,mode=max' }}
         platforms: linux/amd64
         tags: ${{ inputs.tags }}
     - name: Force cache refresh
@@ -54,3 +55,4 @@ runs:
       run: |
         rm -rf /tmp/.buildx-cache
         mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+      shell: sh
